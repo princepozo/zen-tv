@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/logo.png" alt="Zen TV" width="300"></p>
+<p align="center"><img src="docs/logo.png" alt="Zen TV: a smiling Buddha holding a TV" width="220"></p>
 
 # Zen TV
 
@@ -88,7 +88,7 @@ Made by Emmanuel Pozo ([@princepozo](https://x.com/princepozo)).
 ## Install
 
 ```bash
-git clone https://github.com/Jewgonewild/zen-tv.git
+git clone https://github.com/princepozo/zen-tv.git
 cd zen-tv
 python3 install.py
 ```

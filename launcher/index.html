@@ -2813,11 +2813,28 @@
   var okDown = false, lastOkAt = 0;
   document.addEventListener("visibilitychange", function () { okDown = false; });
 
+  // Left/Right past either end of a row wraps around to the other end, but only on a fresh press:
+  // holding the arrow stops at the end, so a fast scroll doesn't fly past it. A held arrow is the
+  // same key repeating within ARROW_REPEAT_MS, with no keyup in between.
+  var ARROW_REPEAT_MS = 300;
+  var arrowDown = 0, lastArrowAt = 0, arrowHeld = false;
+  function wrapStep(i, d, n) {
+    var j = i + d;
+    if (j >= 0 && j < n) return j;
+    return arrowHeld ? i : (j + n) % n;
+  }
+
   document.addEventListener("keydown", function (e) {
     goFullscreen();
     var k = e.keyCode;
     if (!isTizen && (k === 27 || k === 8)) k = 10009; // browser preview: Escape / Backspace act as Back
     if (k === 37 || k === 38 || k === 39 || k === 40 || k === 13 || k === 10009) e.preventDefault();
+    if (k === 37 || k === 39) {
+      var pressedAt = Date.now();
+      arrowHeld = e.repeat || (arrowDown === k && pressedAt - lastArrowAt < ARROW_REPEAT_MS);
+      arrowDown = k;
+      lastArrowAt = pressedAt;
+    }
     if (k === 10009 && opening && pulseShown()) { cancelLaunch(); return; }
     if (k === 13) {
       var now = Date.now(), repeat = okDown && now - lastOkAt < OK_REPEAT_MS;
@@ -2839,8 +2856,7 @@
       else if (k === 38 || k === 10009) closeDetail();
       else if (k === 13 && detail.actions[detail.focus].run) detail.actions[detail.focus].run();
     } else if (zone === "apps") {
-      if (k === 37) focus(current - 1);
-      else if (k === 39) focus(current + 1);
+      if (k === 37 || k === 39) focus(wrapStep(current, k === 39 ? 1 : -1, cells.length));
       else if (k === 38) {
         if (pendingHero) setHero(pendingHero); // its buttons act on the title on screen, not the one before
         setZone(!incognito && currentBg && currentBg.tmdbId ? "hero" : "top");
@@ -2897,8 +2913,7 @@
       else if (k === 10009) closeBrowse();
     } else if (zone === "search") {
       if (searchFocus === "results") {
-        if (k === 37) searchRow.focus(searchRow.current - 1);
-        else if (k === 39) searchRow.focus(searchRow.current + 1);
+        if (k === 37 || k === 39) searchRow.focus(wrapStep(searchRow.current, k === 39 ? 1 : -1, searchRow.cells.length));
         else if (k === 38 || k === 10009) setSearchFocus(inputFocus());
         else if (k === 13) { stopListening(); openDetail(searchRow, "search"); }
       } else if (searchFocus === "keys") {
@@ -2923,8 +2938,7 @@
     } else {
       var row = titleRows[zone];
       var at = ROW_ZONES.indexOf(zone);
-      if (k === 37) row.focus(row.current - 1);
-      else if (k === 39) row.focus(row.current + 1);
+      if (k === 37 || k === 39) row.focus(wrapStep(row.current, k === 39 ? 1 : -1, row.cells.length));
       else if (k === 10009) setZone("apps");
       else if (k === 38) setZone(nextRow(at, -1) || "apps");
       else if (k === 40 && nextRow(at, 1)) setZone(nextRow(at, 1));
@@ -2935,6 +2949,7 @@
 
   document.addEventListener("keyup", function (e) {
     if (e.keyCode === 13) okDown = false;
+    if (e.keyCode === arrowDown) arrowDown = 0;
   });
 })();
 </script>
