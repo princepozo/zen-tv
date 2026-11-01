@@ -25,7 +25,8 @@ Made by Emmanuel Pozo ([@princepozo](https://x.com/princepozo)).
 - **Landscape backgrounds**, or movie and show scenes when recommendations are on
 - **Recommendations** (optional): Trending, New, Classics, Watch Later and voice search
 - **New**: films, new shows and new seasons from the last six weeks, on any service (to stream, rent
-  or buy), with a few documentaries, picked for each profile
+  or buy), with a few documentaries, picked for each profile. Rentals open in Prime Video, Apple TV
+  or YouTube when you have them
 - **Thumbs up/down** on any title or movie background, to steer what it suggests next
 - **Open a title in its app**: Apple TV and Hulu go straight to the title; for a service you don't
   have, "Get Philo to watch" (for example) takes you to Samsung's app store
@@ -34,6 +35,8 @@ Made by Emmanuel Pozo ([@princepozo](https://x.com/princepozo)).
   apps over landscapes) until it's switched back
 - **Five themes**: Glass, Midnight, Paper, Cinema and Nature, picked per profile from the profile menu
 - **Controls**: switch the TV's input or open its settings
+- **Quick to start**: its screen is up about a second after the TV opens it, even on a 2018 TV
+- Rows wrap around: Right past the last tile goes back to the first (hold the arrow to stop at the end)
 - Opens when the TV turns on, and comes back when you leave an app (optional)
 
 ## A look around
@@ -48,7 +51,7 @@ Made by Emmanuel Pozo ([@princepozo](https://x.com/princepozo)).
     <td>Open a title in its app, save it for later, or give it a thumbs up or down</td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/new.jpg" alt="The New row: a new season of MobLand, with new films and shows"></td>
+    <td colspan="2"><img src="docs/screenshots/new.jpg" alt="The New row: a new season of Tulsa King, with new films and shows"></td>
   </tr>
   <tr>
     <td colspan="2"><b>New</b>: what came out in the last six weeks, ranked for you, with new seasons marked</td>
@@ -123,7 +126,7 @@ certificate, choosing Allow on the TV), and your agent will tell you when.
 
 | | |
 | --- | --- |
-| Open an app | Left/Right, then OK. Back while it's loading cancels |
+| Open an app | Left/Right, then OK (rows wrap around at their ends). Back while it's loading cancels |
 | Recommendations | Down from the apps: Trending, New, Classics, Watch Later |
 | Thumbs up/down | OK on a title, then Right to 👍 or 👎; or Up to a movie background's buttons |
 | Switch profile or theme | Up, then OK on your name (top left) |
