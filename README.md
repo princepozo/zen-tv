@@ -23,7 +23,9 @@ Made by Emmanuel Pozo ([@princepozo](https://x.com/princepozo)).
 
 - **Your apps** in one row, ordered by what you use most
 - **Landscape backgrounds**, or movie and show scenes when recommendations are on
-- **Recommendations** (optional): Trending, Classics, Watch Later and voice search
+- **Recommendations** (optional): Trending, New, Classics, Watch Later and voice search
+- **New**: films, new shows and new seasons from the last six weeks, on any service (to stream, rent
+  or buy), with a few documentaries, picked for each profile
 - **Thumbs up/down** on any title or movie background, to steer what it suggests next
 - **Open a title in its app**: Apple TV and Hulu go straight to the title; for a service you don't
   have, "Get Philo to watch" (for example) takes you to Samsung's app store
@@ -44,6 +46,12 @@ Made by Emmanuel Pozo ([@princepozo](https://x.com/princepozo)).
   <tr>
     <td><b>Trending</b> on your apps, with Classics and Watch Later below</td>
     <td>Open a title in its app, save it for later, or give it a thumbs up or down</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/new.jpg" alt="The New row: a new season of MobLand, with new films and shows"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><b>New</b>: what came out in the last six weeks, ranked for you, with new seasons marked</td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/theme-menu.jpg" alt="The profile menu: the profiles, then this profile's theme"></td>
@@ -116,7 +124,7 @@ certificate, choosing Allow on the TV), and your agent will tell you when.
 | | |
 | --- | --- |
 | Open an app | Left/Right, then OK. Back while it's loading cancels |
-| Recommendations | Down from the apps: Trending, Classics, Watch Later |
+| Recommendations | Down from the apps: Trending, New, Classics, Watch Later |
 | Thumbs up/down | OK on a title, then Right to 👍 or 👎; or Up to a movie background's buttons |
 | Switch profile or theme | Up, then OK on your name (top left) |
 | Incognito | Up, then Right to the switch next to your name, and OK |

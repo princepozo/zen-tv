@@ -586,9 +586,158 @@ window.ZEN_TITLES = (function () {
     }, cacheOnly);
   }
 
+  // "New": films from the last year that came out at home (digital or TV release) in the last
+  // NEW_DAYS, and shows that premiered or started a new season in that time, on any service, to
+  // stream or to rent or buy. Fetched once a day per profile: what's popular and new, the same in the
+  // profile's top genres, and new documentaries; then where each of the best-matching ones is
+  // offered (a show's details say that and when its season started, in one request). Ranked by
+  // taste with popularity counting too, thumbs-down titles left out, and always a few documentaries
+  // among the row's cards.
+  // done(row, all) like trendingToday. Each item gets offer: { kind: "stream" | "rent" | "buy",
+  // app: an app key here (or null), service: the provider's name }.
+  var NEW_DAYS = 45, NEW_MAX = 20, NEW_DOCS = 3, NEW_LOOKUPS = 60, NEW_DOC_LOOKUPS = 12;
+  var DOCUMENTARY = 99;
+  var NEW_SKIP = SKIP_GENRES.concat([10762, 10766]); // also kids and soaps (daily soaps are always "new")
+  var POPULARITY_WEIGHT = 2; // how much 20 places of popularity count against taste (in genre-weight points)
+  // Where a title is offered, shared by every profile and kept for a few days:
+  // { "movie123": { at, offer }, "tv123": { at, offer, season } } (season: see newSeason)
+  var OFFER_CACHE_KEY = "zen.offers.v1";
+  function readOfferCache() {
+    try { return JSON.parse(localStorage.getItem(OFFER_CACHE_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function writeOfferCache(cache) {
+    var now = Date.now(), kept = {}, stored = readOfferCache();
+    [stored, cache].forEach(function (c) {
+      Object.keys(c).forEach(function (k) { if (now - c[k].at < PROVIDER_CACHE_MS) kept[k] = c[k]; });
+    });
+    try { localStorage.setItem(OFFER_CACHE_KEY, JSON.stringify(kept)); } catch (e) {}
+  }
+  // The best way to watch here: streaming on an app here, then renting or buying on one, then the
+  // same on a service without an app here (null: not offered in the US)
+  function offerOf(us, providerApps) {
+    var tagged = function (kind) {
+      return function (p) { return { kind: kind, app: providerApps[p.provider_id] || null, service: p.provider_name }; };
+    };
+    var all = (us.flatrate || []).concat(us.ads || [], us.free || []).map(tagged("stream"))
+      .concat((us.rent || []).map(tagged("rent")), (us.buy || []).map(tagged("buy")));
+    var best = null;
+    all.some(function (o) { return o.app && (best = o); });
+    return best || all[0] || null;
+  }
+  // A show is new if it premiered (0), or its latest season started (that season's number), on or
+  // after `from` (YYYY-MM-DD); otherwise -1. Long-running shows' new seasons don't count: every
+  // autumn SVU and NCIS would fill the row.
+  var NEW_SEASON_MAX = 8;
+  function newSeason(d, from) {
+    if ((d.first_air_date || "") >= from) return 0;
+    var last = d.last_episode_to_air;
+    var started = !!last && last.season_number <= NEW_SEASON_MAX && (d.seasons || []).some(function (s) {
+      return s.season_number === last.season_number && (s.air_date || "") >= from;
+    });
+    return started ? last.season_number : -1;
+  }
+  function newTitles(key, providerApps, profile, saved, done, cacheOnly) {
+    var w = taste(profile, saved), top = topGenres(w, TOP_GENRES);
+    var disliked = {};
+    readRatings(profile).forEach(function (x) { if (x.r < 0) disliked[x.id] = true; });
+    daily(profileKey("zen.new.v1", profile), top.join("|"), function (finish) {
+      var since = new Date();
+      since.setDate(since.getDate() - NEW_DAYS);
+      var from = isoDate(since), to = isoDate(new Date()), failed = 0;
+      var yearAgo = new Date();
+      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+      var movie = "/discover/movie?region=US&with_release_type=4|6&release_date.gte=" + from + "&release_date.lte=" + to +
+        "&primary_release_date.gte=" + isoDate(yearAgo) + "&sort_by=popularity.desc&without_genres=" + NEW_SKIP.join("|");
+      // shows with episodes in the window: premieres, new seasons and long-running ones (dropped below)
+      var tv = "/discover/tv?air_date.gte=" + from + "&air_date.lte=" + to +
+        "&sort_by=popularity.desc&without_genres=" + NEW_SKIP.join("|");
+      // [path, type, popularity offset: a second page starts at 20]
+      var lists = [
+        [movie + "&vote_count.gte=3&page=1", "movie", 0], [movie + "&vote_count.gte=3&page=2", "movie", 20],
+        [tv + "&vote_count.gte=10&page=1", "tv", 0], [tv + "&vote_count.gte=10&page=2", "tv", 20],
+        [tv + "&first_air_date.gte=" + from, "tv", 0], // premieres, which may not be popular enough for the above
+        [movie + "&vote_count.gte=2&with_genres=" + DOCUMENTARY, "movie", 0],
+        [tv + "&vote_count.gte=2&with_genres=" + DOCUMENTARY, "tv", 0]
+      ];
+      if (top.length) {
+        lists.push([movie + "&vote_count.gte=3&with_genres=" + top.join("|"), "movie", 0]);
+        lists.push([tv + "&vote_count.gte=10&with_genres=" + top.join("|"), "tv", 0]);
+      }
+      Promise.all(lists.map(function (l) {
+        return tmdb(key, l[0]).then(function (d) {
+          return (d.results || []).map(function (m, i) { m.media_type = l[1]; m.rank = l[2] + i; return m; });
+        }).catch(function () { failed++; return []; });
+      })).then(function (ds) {
+        var seen = {}, titles = [];
+        ds.forEach(function (results) {
+          results.forEach(function (m) {
+            var id = m.media_type + m.id;
+            if (!m.backdrop_path || seen[id] || disliked[id]) return;
+            seen[id] = true;
+            titles.push(m);
+          });
+        });
+        // Only the best-matching titles are looked up (each lookup is a request)
+        var ranked = rankBy(titles, function (m) {
+          return score({ genreIds: m.genre_ids }, w) + POPULARITY_WEIGHT * (1 - m.rank / 20);
+        });
+        var isDoc = function (m) { return (m.genre_ids || []).indexOf(DOCUMENTARY) >= 0; };
+        var picked = ranked.filter(function (m) { return !isDoc(m); }).slice(0, NEW_LOOKUPS)
+          .concat(ranked.filter(isDoc).slice(0, NEW_DOC_LOOKUPS));
+        var known = readOfferCache(), now = Date.now(), requests = lists.length + picked.length;
+        return Promise.all(picked.map(function (m) {
+          var id = m.media_type + m.id, hit = known[id], isShow = m.media_type === "tv";
+          var lookup = hit && now - hit.at < PROVIDER_CACHE_MS && (!isShow || "season" in hit) ? Promise.resolve(hit) :
+            tmdb(key, isShow ? "/tv/" + m.id + "?append_to_response=watch/providers" : "/movie/" + m.id + "/watch/providers").then(function (d) {
+              var p = isShow ? d["watch/providers"] || {} : d;
+              var found = { at: Date.now(), offer: offerOf((p.results && p.results.US) || {}, providerApps) };
+              if (isShow) found.season = newSeason(d, from);
+              known[id] = found;
+              return found;
+            });
+          return lookup.then(function (found) {
+            var offer = found.offer;
+            if (!offer || found.season < 0) return null;
+            var e = entry(m.media_type, m, m.backdrop_path, "New");
+            // a new season: "Season 3 · Crime · Drama" rather than the year the show began
+            if (found.season > 0) {
+              e.season = found.season;
+              e.sub = ["Season " + found.season].concat(e.genres).join(" · ");
+            }
+            e.offer = offer;
+            e.app = offer.app;
+            e.rank = m.rank;
+            return e;
+          }).catch(function () { failed++; return null; });
+        })).then(function (items) {
+          writeOfferCache(known);
+          finish(items.filter(Boolean), failed <= requests * FAILURE_TOLERANCE);
+        });
+      }).catch(function () { finish([], false); });
+    }, function (items) {
+      if (!items) { done(null); return; }
+      // Never what the taste leans against, or a thumbs down since the fetch; a profile with its own
+      // rows (trendingOwn) also skips what its taste is neutral about, except documentaries
+      var isDoc = function (it) { return (it.genreIds || []).indexOf(DOCUMENTARY) >= 0; };
+      var floor = profile.trendingOwn ? 1 : 0;
+      items = items.filter(function (it) { return !disliked[it.id] && score(it, w) >= (isDoc(it) ? 0 : floor); });
+      var ranked = rankBy(items, function (it) { return score(it, w) + POPULARITY_WEIGHT * (1 - it.rank / 20); });
+      // A few documentaries always make the row: any missing replace the lowest non-documentaries,
+      // spread through it rather than bunched at the end
+      var row = ranked.slice(0, NEW_MAX);
+      var extra = ranked.slice(NEW_MAX).filter(isDoc).slice(0, Math.max(0, NEW_DOCS - row.filter(isDoc).length));
+      if (extra.length) {
+        var drop = extra.length;
+        for (var r = row.length - 1; r >= 0 && drop; r--) if (!isDoc(row[r])) { row.splice(r, 1); drop--; }
+        extra.forEach(function (d, n) { row.splice(Math.min(row.length, 4 + 6 * n), 0, d); }); // 5th, 11th, 17th
+      }
+      done(row, ranked);
+    }, cacheOnly);
+  }
+
   return {
     profiles: PROFILES, profileKey: profileKey, region: REGION, toEntry: entry, setPaused: setPaused,
-    load: load, api: tmdb, trendingToday: trendingToday, classicsOnApps: classicsOnApps,
+    load: load, api: tmdb, trendingToday: trendingToday, classicsOnApps: classicsOnApps, newTitles: newTitles,
     ratingOf: ratingOf, rate: rate
   };
 })();

@@ -376,11 +376,15 @@
     border-radius: var(--tile-r); pointer-events: none;
     box-shadow: inset 0 -18px 30px -18px rgba(0,0,0,0.35);
   }
+  /* Exactly the tile's size and shape, with the light moved by background-position rather than a
+     transform: the TV's browser doesn't clip a moving layer to the tile's rounded corners, so an
+     oversized one showed its square grey edges outside the corners */
   .tile::after {
-    content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; z-index: 3;
-    pointer-events: none;
-    background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 18%, rgba(255,255,255,0) 38%);
-    transform: translate(-22%, -26%);
+    content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 3;
+    border-radius: var(--tile-r); pointer-events: none;
+    background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 18%, rgba(255,255,255,0) 38%) no-repeat;
+    background-size: 200% 200%;
+    background-position: 94% 102%;
     opacity: 0.18; transition: opacity 0.18s ease;
   }
   .cell.focused { z-index: 2; }
@@ -393,8 +397,8 @@
      because it kept the GPU busy; a glint looping forever kept it busy on the idle home screen) */
   .cell.focused .tile::after { opacity: 1; -webkit-animation: glint 6s ease-in-out 0.4s 2; animation: glint 6s ease-in-out 0.4s 2; }
   @keyframes glint {
-    0%, 100% { transform: translate(-30%, -30%); }
-    50%      { transform: translate(-8%, -22%); }
+    0%, 100% { background-position: 110% 110%; }
+    50%      { background-position: 66% 94%; }
   }
   .cell.launching .lift { transform: scale(1.04); transition-duration: 0.1s; }
   /* While its app starts: the pressed tile stays lifted and a soft ring pulses around it */
@@ -434,7 +438,7 @@
     transition: opacity 0.8s ease;
   }
   /* On a title row, clear of the row's label (75px above its cards) */
-  .zone-trend .hero, .zone-classic .hero, .zone-later .hero { bottom: 445px; }
+  .zone-trend .hero, .zone-new .hero, .zone-classic .hero, .zone-later .hero { bottom: 445px; }
   .hero-eyebrow {
     font-size: 22px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
     color: var(--fg-dim);
@@ -472,7 +476,7 @@
   .hero.can-save .hero-btn { display: inline-flex; }
   .hero-btn.focused, .act.focused { background: #fff; color: #111; transform: scale(1.06); }
   /* title rows use the detail view's buttons instead */
-  .zone-trend .hero.can-save .hero-btn, .zone-classic .hero.can-save .hero-btn,
+  .zone-trend .hero.can-save .hero-btn, .zone-new .hero.can-save .hero-btn, .zone-classic .hero.can-save .hero-btn,
   .zone-later .hero.can-save .hero-btn, .search-open .hero.can-save .hero-btn { display: none; }
 
   /* Detail view: OK on a title card hides the rows and shows its actions under the hero */
@@ -493,7 +497,7 @@
   .thumb.on svg { fill: currentColor; }
   .thumb.down svg { transform: rotate(180deg); }
 
-  /* Rows stack vertically (apps, Trending, Classics, Watch Later) inside .rows: Trending 338px below
+  /* Rows stack vertically (apps, Trending, New, Classics, Watch Later) inside .rows: Trending 338px below
      the apps, each title row 380px below the one above (their cards are taller). Moving down
      slides .rows up so the active row always sits where the apps row does; rows above it fade
      away (leaving room for the hero) and the next row's label peeks in at the bottom, like tvOS. */
@@ -509,14 +513,17 @@
   .title-shelf { position: absolute; left: var(--edge); right: 0; }
   /* label (41px) + gap (34px) above the cards: shelves start 75px above the 750px card line */
   #trend-shelf { top: 1033px; }
-  #classic-shelf { top: 1413px; }
-  #later-shelf { top: 1793px; }
+  #new-shelf { top: 1413px; }
+  #classic-shelf { top: 1793px; }
+  #later-shelf { top: 2173px; }
   .zone-trend .rows { transform: translateY(-358px); }
-  .zone-classic .rows { transform: translateY(-738px); }
-  .zone-later .rows { transform: translateY(-1118px); }
+  .zone-new .rows { transform: translateY(-738px); }
+  .zone-classic .rows { transform: translateY(-1118px); }
+  .zone-later .rows { transform: translateY(-1498px); }
   .zone-trend .shelf,
-  .zone-classic .shelf, .zone-classic #trend-shelf,
-  .zone-later .shelf, .zone-later #trend-shelf, .zone-later #classic-shelf { opacity: 0; }
+  .zone-new .shelf, .zone-new #trend-shelf,
+  .zone-classic .shelf, .zone-classic #trend-shelf, .zone-classic #new-shelf,
+  .zone-later .shelf, .zone-later #trend-shelf, .zone-later #new-shelf, .zone-later #classic-shelf { opacity: 0; }
   .row-label {
     text-align: left; line-height: 41px;
     font-size: 34px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg);
@@ -837,6 +844,10 @@
     <div class="title-shelf" id="trend-shelf">
       <div class="row-label">Trending</div>
       <div class="title-row" id="trend-row"></div>
+    </div>
+    <div class="title-shelf" id="new-shelf">
+      <div class="row-label">New</div>
+      <div class="title-row" id="new-row"></div>
     </div>
     <div class="title-shelf" id="classic-shelf">
       <div class="row-label">Classics</div>
@@ -1715,6 +1726,13 @@
   SERVICES.forEach(function (s) {
     s.providers.split("|").forEach(function (id) { PROVIDER_APPS[id] = s.app; });
   });
+  // The New row also offers rentals: the stores of Amazon (10), Apple (2) and YouTube (192) rent and
+  // sell through those apps, when they're on this TV
+  var OFFER_APPS = {};
+  [[10, "prime"], [2, "appletv"], [192, "youtube"]].forEach(function (s) {
+    if (appByKey(s[1])) OFFER_APPS[s[0]] = s[1];
+  });
+  Object.keys(PROVIDER_APPS).forEach(function (id) { OFFER_APPS[id] = PROVIDER_APPS[id]; });
   function appByKey(key) {
     for (var i = 0; i < APPS.length; i++) if (APPS[i].key === key) return APPS[i];
     return EXTRA_APPS[key] || null;
@@ -1932,7 +1950,7 @@
     var app = appKey && appByKey(appKey);
     var links = titleLinks[it.id] || {};
     var link = app && links[app.key];
-    var missing = !app && it.provider && missingService(it.provider);
+    var missing = !app && (it.offer ? it.offer.service : it.provider && missingService(it.provider));
     var open = app
       ? { label: "▶ Open in " + app.name, run: function () { openTitle(app, it, link); } } // the title itself when there's a link
       : missing ? { label: "Get " + missing + " to watch", run: function () { getApp(missing, it); } }
@@ -1973,7 +1991,7 @@
     });
     detail.actions = actions;
   }
-  // row: the row the card is in; from: the zone to return to ("trend", "classic", "later", "search")
+  // row: the row the card is in; from: the zone to return to ("trend", "new", "classic", "later", "search")
   function openDetail(row, from) {
     if (!row || !row.item()) return;
     if (row.item().more) { openBrowse(row, from); return; }
@@ -2126,11 +2144,24 @@
   // are more titles than the row shows, its last card is "View more", which opens them all in a grid.
   // title: the section name; eyebrow: "Trending" or "Classic" (the hero's label).
   var MORE = { id: "more", more: true };
+  // Where a row's title is watched: "On Netflix"; New's titles may also be "Rent on Prime Video" or
+  // on a service with no app here ("On Philo")
+  function offerText(it) {
+    var o = it.offer, where = it.app ? appName(it.app) : o ? o.service : appName(null);
+    return (o && o.kind === "rent" ? "Rent on " : o && o.kind === "buy" ? "Buy on " : "On ") + where;
+  }
+  // The preview's eyebrow: "Trending on Netflix · Movie", "New · Rent on Prime Video · Movie",
+  // "New season on Hulu · TV Series"
+  function rowEyebrow(eyebrow, it) {
+    var on = offerText(it);
+    if (it.season) eyebrow += " season";
+    return (on.indexOf("On ") === 0 ? eyebrow + " on " + on.slice(3) : eyebrow + " · " + on) + " · " + kindOf(it);
+  }
   function AppTitleRow(el, title, eyebrow, emptyText) {
     var row = new TitleRow(el, function (it) {
-      return it.more ? moreCard() : titleCard(it, "On " + appName(it.app));
+      return it.more ? moreCard() : titleCard(it, offerText(it));
     }, function (it) {
-      if (!it.more) previewBg(itemToBg(it, eyebrow + " on " + appName(it.app) + " · " + kindOf(it)));
+      if (!it.more) previewBg(itemToBg(it, rowEyebrow(eyebrow, it)));
     }, emptyText);
     row.title = title;
     row.eyebrow = eyebrow;
@@ -2151,8 +2182,10 @@
     return cell;
   }
   var trendRow = AppTitleRow($("trend-row"), "Trending", "Trending", "Loading what's trending on your apps…");
+  var newRow = AppTitleRow($("new-row"), "New", "New", "Loading what's new…");
   var classicRow = AppTitleRow($("classic-row"), "Classics", "Classic", "Loading classics on your apps…");
   // On the app row only Trending is next; the rows below it load their images as you get near them
+  newRow.near = false;
   classicRow.near = false;
   laterRow.near = false;
 
@@ -2168,7 +2201,7 @@
     var grid = $("browse-grid");
     grid.innerHTML = "";
     var cells = row.all.map(function (it) {
-      var c = titleCard(it, "On " + appName(it.app));
+      var c = titleCard(it, offerText(it));
       grid.appendChild(c);
       return c;
     });
@@ -2197,7 +2230,7 @@
       }
     }
     var it = browse.items[i];
-    previewBg(itemToBg(it, browse.row.eyebrow + " on " + appName(it.app) + " · " + kindOf(it)));
+    previewBg(itemToBg(it, rowEyebrow(browse.row.eyebrow, it)));
   }
   function closeBrowse() {
     var from = browse.from;
@@ -2206,11 +2239,11 @@
     setZone(from);
   }
 
-  // Both rows change once a day (titles.js keeps each day's lists on the TV). At startup (and so right
+  // The rows change once a day (titles.js keeps each day's lists on the TV). At startup (and so right
   // after a profile switch) today's saved lists show at once; fetching, when needed, waits a few
   // seconds for the backgrounds. Checked hourly and whenever Zen TV comes back on screen, since
   // the TV pauses timers while it's off overnight.
-  // Both rows also follow the profile's taste, which Watch Later saves change. After a save they're
+  // The rows also follow the profile's taste, which Watch Later saves change. After a save they're
   // re-ranked once you're back on the app row (not while you browse them, so cards don't jump).
   var rowsDate = "", rowsSeq = 0, rowsLoading = false, tasteChanged = false;
   // cacheOnly: show today's saved lists only, never fetch
@@ -2220,15 +2253,16 @@
     var today = new Date().toDateString();
     if (today === rowsDate) return;
     // Only the latest load may fill the rows (an older one finishing late would show a stale order)
-    var seq = ++rowsSeq, saved = readLater(), pending = 2, missing = false;
+    var seq = ++rowsSeq, saved = readLater(), pending = 3, missing = false;
     if (!cacheOnly) rowsLoading = true;
     var settle = function (row, list, all) {
       if (list && list.length) { if (seq === rowsSeq) showRow(row, list, all); } else missing = true;
       if (--pending) return;
       if (!cacheOnly) rowsLoading = false;
-      if (seq === rowsSeq && !missing) rowsDate = today; // both shown: nothing more until tomorrow
+      if (seq === rowsSeq && !missing) rowsDate = today; // all shown: nothing more until tomorrow
     };
     window.ZEN_TITLES.trendingToday(TMDB_KEY, PROVIDER_APPS, profile, saved, function (list, all) { settle(trendRow, list, all); }, cacheOnly);
+    window.ZEN_TITLES.newTitles(TMDB_KEY, OFFER_APPS, profile, saved, function (list, all) { settle(newRow, list, all); }, cacheOnly);
     window.ZEN_TITLES.classicsOnApps(TMDB_KEY, SERVICES, profile, saved, function (list, all) { settle(classicRow, list, all); }, cacheOnly);
   }
   // New lists for a row you're browsing (or that a detail view / grid came from) wait until you're
@@ -2261,6 +2295,7 @@
       var p = PROFILES[id], saved = [];
       try { saved = JSON.parse(localStorage.getItem(window.ZEN_TITLES.profileKey("zen.later.v1", p))) || []; } catch (e) {}
       window.ZEN_TITLES.trendingToday(TMDB_KEY, PROVIDER_APPS, p, saved, function () {});
+      window.ZEN_TITLES.newTitles(TMDB_KEY, OFFER_APPS, p, saved, function () {});
       window.ZEN_TITLES.classicsOnApps(TMDB_KEY, SERVICES, p, saved, function () {});
     });
   }
@@ -2718,12 +2753,12 @@
     try { tizen.application.launch(SETTINGS_APP, null, failed); } catch (e) { failed(); }
   }
 
-  /* ---------- Focus zones: top line, hero button, app row, Trending, Classics, Watch Later ---------- */
+  /* ---------- Focus zones: top line, hero button, app row, Trending, New, Classics, Watch Later ---------- */
   // Zones: "top" (profile pill / controls / search), "profiles" and "controls" (their menus open),
   // "hero", "apps", the title rows,
   // "search", "browse" (a row's "View more" grid), and "detail" (a title's buttons, over the row,
   // search or grid it came from)
-  var ROW_ZONES = ["trend", "classic", "later"]; // top to bottom, below the app row
+  var ROW_ZONES = ["trend", "new", "classic", "later"]; // top to bottom, below the app row
   // A row can take focus once it has been filled (at power-on its titles may still be on the way)
   function rowReady(z) { return titleRows[z].cells.length > 0; }
   // The nearest filled row above (dir -1) or below (dir 1) row index `at` (-1 is the app row)
@@ -2732,7 +2767,7 @@
     for (var i = at + dir; i >= 0 && i < ROW_ZONES.length; i += dir) if (rowReady(ROW_ZONES[i])) return ROW_ZONES[i];
     return null;
   }
-  var titleRows = { trend: trendRow, classic: classicRow, later: laterRow };
+  var titleRows = { trend: trendRow, "new": newRow, classic: classicRow, later: laterRow };
   var zone = "apps";
   var stage = $("stage");
   function setZone(z) {
@@ -2790,7 +2825,7 @@
   }
 
   rememberSaved(readLater());
-  laterRow.setItems(readLater());
+  afterFirstFrame(function () { laterRow.setItems(readLater()); }); // below the screen, like the other rows
 
   /* ---------- Remote control ---------- */
   // In a browser (testing on the TV's web browser), go full screen on the first key press.
